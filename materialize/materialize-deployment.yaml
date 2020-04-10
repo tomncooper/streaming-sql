@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: materialize-deployment
+  labels:
+    app: materialize
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: materialize
+  template:
+    metadata:
+      labels:
+        app: materialize
+    spec:
+      containers:
+      - name: materialize
+        image: materialize/materialized:latest
+        ports:
+        - containerPort: 6875
+        env:
+        - name: MZ_THREADS
+          value: "2"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: materialize-server
+spec:
+  selector:
+    app: materialize
+  ports:
+  - protocol: TCP
+    port: 6875  
+    targetPort: 6875
