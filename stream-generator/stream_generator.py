@@ -1,5 +1,8 @@
 import logging
 import json
+import os
+import sys
+import signal
 
 from argparse import ArgumentParser, Namespace
 from typing import Iterator
@@ -7,7 +10,10 @@ from typing import Iterator
 from sseclient import SSEClient as EventSource
 from kafka import KafkaProducer
 
-WIKIPEDIA_CHANGES = "https://stream.wikimedia.org/v2/stream/recentchange"
+WIKIPEDIA_CHANGES: str = "https://stream.wikimedia.org/v2/stream/recentchange"
+
+BOOTSTRAP_ENV_VAR: str = "KAFKA_BOOTSTRAP_SERVERS"
+TOPIC_ENV_VAR: str = "KAFKA_TOPIC"
 
 LOG: logging.Logger = logging.getLogger("streamingSQL.generator")
 
@@ -59,14 +65,14 @@ def create_parser() -> ArgumentParser:
     parser.add_argument(
         "-bs",
         "--bootstrap_servers",
-        required=True,
+        required=False,
         help="The server boostrap string for the Kafka cluster",
     )
 
     parser.add_argument(
         "-t",
         "--topic",
-        required=True,
+        required=False,
         help="The topic which messages will be sent to",
     )
 
@@ -87,11 +93,48 @@ if __name__ == "__main__":
         ARGS.bootstrap_servers,
     )
 
-    PRODUCER: KafkaProducer = KafkaProducer(bootstrap_servers=ARGS.bootstrap_servers)
+    # If the command line args are specified then use them. If not then look for env vars
+    # and if they aren't present exit.
+    if not ARGS.bootstrap_servers:
+        if BOOTSTRAP_ENV_VAR in os.environ:
+            BOOTSTRAP: str = os.environ[BOOTSTRAP_ENV_VAR]
+            LOG.info("Using Kafka bootstrap {%s} defined in %s environment variable",
+                    BOOTSTRAP, BOOTSTRAP_ENV_VAR)
+        else:
+            LOG.error(
+                "Kafka boostrap servers string was not supplied via the command line "
+                "argument or the environment variable (%s). Exiting.", BOOTSTRAP_ENV_VAR)
+            sys.exit(1)
+    else:
+        BOOTSTRAP = ARGS.bootstrap_servers
 
-    WIKI_CHANGES: Iterator = wikipedia_changes()
+    if not ARGS.topic:
+        if TOPIC_ENV_VAR in os.environ:
+            TOPIC: str = os.environ[TOPIC_ENV_VAR]
+            LOG.info("Using topic {%s} defined in %s environment variable", TOPIC,
+                    TOPIC_ENV_VAR)
+        else:
+            LOG.error(
+                "Kafka topic was not specified via the command line "
+                "argument or the environment variable (%s). Exiting.", TOPIC_ENV_VAR)
+            sys.exit(1)
+    else:
+        TOPIC = ARGS.topic
+
+
+    PRODUCER: KafkaProducer = KafkaProducer(bootstrap_servers=BOOTSTRAP)
+
+    def terminate_handler(sigterm, frame):
+        LOG.warning("SIGTERM signal received, closing Kafka Producer")
+        PRODUCER.close()
+
+    #Intercept SIGTERM and close PRODUCER gracefully
+    signal.signal(signal.SIGTERM, terminate_handler)
+
+    WIKI_CHANGES: Iterator[dict] = wikipedia_changes()
 
     try:
+        LOG.info("Starting stream generation to %s topic", TOPIC)
         while True:
 
             change: dict = next(WIKI_CHANGES)
@@ -109,9 +152,9 @@ if __name__ == "__main__":
                 continue
 
             try:
-                PRODUCER.send(ARGS.topic, value=payload)
+                PRODUCER.send(TOPIC, value=payload)
             except Exception as kafka_error:
-                LOG.error("Error sending to Kafka: %s", str(kafka_error))
+                LOG.error("Error when sending to Kafka: %s", str(kafka_error))
                 continue
 
     except KeyboardInterrupt:
