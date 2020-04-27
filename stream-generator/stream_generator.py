@@ -29,27 +29,21 @@ def wikipedia_changes() -> Iterator[dict]:
             else:
                 yield change
 
-def setup_logging(logger: logging.Logger, debug: bool = False) -> logging.Logger:
+def setup_logging(logger: logging.Logger, debug: bool = False) -> None:
 
     style = "{"
 
     if debug:
         level: int = logging.DEBUG
-        console_fmt: str = "{levelname} | {name} | F:{funcName} | L:{lineno} | {message}"
-        file_fmt: str = (
-            "{asctime} | {levelname} | {name} | F:{funcName} | L:{lineno} | {message}"
-        )
+        console_fmt: str = "{asctime} | {levelname} | {name} | F:{funcName} | L:{lineno} | {message}"
 
     else:
         level = logging.INFO
-        console_fmt = "{levelname} | {name} | {message}"
-        file_fmt = "{asctime} | {name} | {levelname} | {message}"
+        console_fmt = "{asctime} | {levelname} | {name} | {message}"
 
-    console_handler: logging.StreamHandler = logging.StreamHandler()
+    console_handler: logging.StreamHandler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(logging.Formatter(fmt=console_fmt, style=style))
     logger.addHandler(console_handler)
-
-    return logger
 
 def create_parser() -> ArgumentParser:
 
@@ -84,7 +78,9 @@ if __name__ == "__main__":
     PARSER: ArgumentParser = create_parser()
     ARGS: Namespace = PARSER.parse_args()
 
-    TOP_LOG: logging.Logger = setup_logging(logging.getLogger("streamingSQL"), ARGS.debug)
+    TOP_LOG: logging.Logger = logging.getLogger("streamingSQL")
+
+    setup_logging(TOP_LOG, ARGS.debug)
 
     TOP_LOG.info("Starting stream generation program")
 
@@ -98,10 +94,10 @@ if __name__ == "__main__":
     if not ARGS.bootstrap_servers:
         if BOOTSTRAP_ENV_VAR in os.environ:
             BOOTSTRAP: str = os.environ[BOOTSTRAP_ENV_VAR]
-            LOG.info("Using Kafka bootstrap {%s} defined in %s environment variable",
+            TOP_LOG.info("Using Kafka bootstrap {%s} defined in %s environment variable",
                     BOOTSTRAP, BOOTSTRAP_ENV_VAR)
         else:
-            LOG.error(
+            TOP_LOG.error(
                 "Kafka boostrap servers string was not supplied via the command line "
                 "argument or the environment variable (%s). Exiting.", BOOTSTRAP_ENV_VAR)
             sys.exit(1)
@@ -111,10 +107,10 @@ if __name__ == "__main__":
     if not ARGS.topic:
         if TOPIC_ENV_VAR in os.environ:
             TOPIC: str = os.environ[TOPIC_ENV_VAR]
-            LOG.info("Using topic {%s} defined in %s environment variable", TOPIC,
+            TOP_LOG.info("Using topic {%s} defined in %s environment variable", TOPIC,
                     TOPIC_ENV_VAR)
         else:
-            LOG.error(
+            TOP_LOG.error(
                 "Kafka topic was not specified via the command line "
                 "argument or the environment variable (%s). Exiting.", TOPIC_ENV_VAR)
             sys.exit(1)
@@ -125,7 +121,7 @@ if __name__ == "__main__":
     PRODUCER: KafkaProducer = KafkaProducer(bootstrap_servers=BOOTSTRAP)
 
     def terminate_handler(sigterm, frame):
-        LOG.warning("SIGTERM signal received, closing Kafka Producer")
+        TOP_LOG.warning("SIGTERM signal received, closing Kafka Producer")
         PRODUCER.close()
 
     #Intercept SIGTERM and close PRODUCER gracefully
@@ -134,7 +130,7 @@ if __name__ == "__main__":
     WIKI_CHANGES: Iterator[dict] = wikipedia_changes()
 
     try:
-        LOG.info("Starting stream generation to %s topic", TOPIC)
+        TOP_LOG.info("Starting stream generation to %s topic", TOPIC)
         while True:
 
             change: dict = next(WIKI_CHANGES)
@@ -142,23 +138,23 @@ if __name__ == "__main__":
             try:
                 payload_str: str = json.dumps(change)
             except Exception as json_error:
-                LOG.error("Error encoding change message to JSON: %s", str(json_error))
+                TOP_LOG.error("Error encoding change message to JSON: %s", str(json_error))
                 continue
 
             try:
                 payload: bytes = payload_str.encode("UTF-8")
             except UnicodeError as serialise_error:
-                LOG.error("Error encoding change message to bytes: %s", str(serialise_error))
+                TOP_LOG.error("Error encoding change message to bytes: %s", str(serialise_error))
                 continue
 
             try:
                 PRODUCER.send(TOPIC, value=payload)
             except Exception as kafka_error:
-                LOG.error("Error when sending to Kafka: %s", str(kafka_error))
+                TOP_LOG.error("Error when sending to Kafka: %s", str(kafka_error))
                 continue
 
     except KeyboardInterrupt:
-         LOG.info("Closing Kafka producer...")
+         TOP_LOG.info("Closing Kafka producer...")
          PRODUCER.close()
-         LOG.info("Kafka producer closed. Exiting.")
+         TOP_LOG.info("Kafka producer closed. Exiting.")
 

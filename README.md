@@ -14,12 +14,27 @@ curl -L http://strimzi.io/install/latest \
     | kubectl apply -f - -n <namespace>
 ```
 
-The spin up a 3 node Kafka cluster with the following command (see the [project repository](https://github.com/strimzi/strimzi-kafka-operator/tree/master/examples/kafka) for other example Kafka deployments):
+Then you can spin up a 3 node Kafka cluster with the following command (see the [Strimzi project repository](https://github.com/strimzi/strimzi-kafka-operator/tree/master/examples/kafka) for other example Kafka deployments):
 
 ```bash
 kubectl apply -f \
     https://strimzi.io/examples/latest/kafka/kafka-persistent.yaml \
     -n <namespace>
+```
+
+## Stream Generator
+
+In order to provide an example streaming source, for the stream SQL implementations in this repo, an example stream generator deployment is provided. This will stream the [Wikipedia](https://wikipedia.org) changes log into a Kafka topic (removing any non-change messages and errors). This stream source can be deployed using the following command:
+
+```bash
+kubectl apply -f stream-generator/generator-deployment.yaml
+```
+
+By default this will stream messages to the broker bootstrap address for the Strimzi cluster described in the section above. If you are using a different set up the change the `KAFKA_BOOTSTRAP_SERVERS` environment variable in the deployment file.
+The generator will stream changes into the `wiki-changes` topic on the configured Kafka broker. If you do not have topic auto-creation enabled, you should create that topic first. If you are using the Strimzi deployment above, which has the Topic Operator enabled, the topic can be created using the command below:
+
+```bash
+kubectl apply -f stream-generator/kafka-topic.yaml
 ```
 
 ## ksqlDB
@@ -44,12 +59,26 @@ $ kubectl apply -f ksqlDB/ksqlDB-deployment.yaml
 Once deployed you can interact with the server using the `ksql-cli` command line client running in another pod using the `ksql-cli.sh` script:
 
 ```bash
-$ ./ksqlDB/ksql-cli.sh 1
+$ ./ksqlDB/ksql-cli.sh <namespace> 1
 ```
 
-Where the number after the script is used to label different invocations of the CLI if you want to run more than one instance for data entry and analysis.
+Where the first argument is the namespace the ksqlDB instance is deployed in and the second argument is a number used to label different invocations of the CLI if you want to run more than one instance for data entry and analysis.
 
-Now you can play with ksqlDB and follow the [project quickstart guide](https://ksqldb.io/quickstart.html).
+Now you can play with ksqlDB and follow the [project quickstart guide](https://ksqldb.io/quickstart.html). 
+
+Alternatively, you can write queries against the Wikipedia changes stream. For example, if you want to create a stream which contains the user IDs and the title of the Wikipedia article they are editing you can use the command below:
+
+```sql
+CREATE STREAM userTitles (user VARCHAR, title VARCHAR) WITH (kafka_topic='wiki-changes', key='user', value_format='json');
+```
+
+You can then see the contents of that stream by using the query below:
+
+```sql
+SELECT * FROM userTitles EMIT CHANGES;
+```
+
+You create tables from this stream and others and then query these like tables in a database.
 
 ## materialize
 

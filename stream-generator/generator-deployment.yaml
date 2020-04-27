@@ -17,6 +17,7 @@ spec:
       containers:
       - name: generator
         image: tomncooper/wiki-change-generator:latest
+        imagePullPolicy: Always
         env:
         - name: KAFKA_BOOTSTRAP_SERVERS
           value: my-cluster-kafka-bootstrap:9092
