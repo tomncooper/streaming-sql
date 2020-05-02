@@ -5,7 +5,7 @@ import sys
 import signal
 
 from argparse import ArgumentParser, Namespace
-from typing import Iterator
+from typing import Iterator, Optional
 
 from sseclient import SSEClient as EventSource
 from kafka import KafkaProducer
@@ -17,16 +17,18 @@ TOPIC_ENV_VAR: str = "KAFKA_TOPIC"
 
 LOG: logging.Logger = logging.getLogger("streamingSQL.generator")
 
-def wikipedia_changes() -> Iterator[dict]:
+def wikipedia_changes() -> Iterator[Optional[dict]]:
 
     for event in EventSource(WIKIPEDIA_CHANGES):
         if event.event == 'message':
+            LOG.debug("Processing new message")
             try:
                 change = json.loads(event.data)
             except json.JSONDecodeError:
-                LOG.error("JSON Decode failed on message: %s", event.data)
-                pass
+                LOG.warning("JSON Decode failed on message: %s", event.data)
+                yield None
             else:
+                LOG.debug("Yielding message")
                 yield change
 
 def setup_logging(logger: logging.Logger, debug: bool = False) -> None:
@@ -41,9 +43,10 @@ def setup_logging(logger: logging.Logger, debug: bool = False) -> None:
         level = logging.INFO
         console_fmt = "{asctime} | {levelname} | {name} | {message}"
 
-    console_handler: logging.StreamHandler = logging.StreamHandler(sys.stdout)
+    console_handler: logging.StreamHandler = logging.StreamHandler()
     console_handler.setFormatter(logging.Formatter(fmt=console_fmt, style=style))
     logger.addHandler(console_handler)
+    logger.setLevel(level)
 
 def create_parser() -> ArgumentParser:
 
@@ -127,30 +130,38 @@ if __name__ == "__main__":
     #Intercept SIGTERM and close PRODUCER gracefully
     signal.signal(signal.SIGTERM, terminate_handler)
 
-    WIKI_CHANGES: Iterator[dict] = wikipedia_changes()
+    WIKI_CHANGES: Iterator[Optional[dict]] = wikipedia_changes()
 
     try:
         TOP_LOG.info("Starting stream generation to %s topic", TOPIC)
         while True:
 
-            change: dict = next(WIKI_CHANGES)
+            try:
+                change: Optional[dict] = next(WIKI_CHANGES)
+            except Exception as read_err:
+                TOP_LOG.warning("Error fetching Wikipedia change message: %s", str(read_err))
+                continue
+
+            if not change:
+                TOP_LOG.warning("Returned wiki change was empty")
+                continue
 
             try:
                 payload_str: str = json.dumps(change)
             except Exception as json_error:
-                TOP_LOG.error("Error encoding change message to JSON: %s", str(json_error))
+                TOP_LOG.warning("Error encoding change message to JSON: %s", str(json_error))
                 continue
 
             try:
                 payload: bytes = payload_str.encode("UTF-8")
             except UnicodeError as serialise_error:
-                TOP_LOG.error("Error encoding change message to bytes: %s", str(serialise_error))
+                TOP_LOG.warning("Error encoding change message to bytes: %s", str(serialise_error))
                 continue
 
             try:
                 PRODUCER.send(TOPIC, value=payload)
             except Exception as kafka_error:
-                TOP_LOG.error("Error when sending to Kafka: %s", str(kafka_error))
+                TOP_LOG.warning("Error when sending to Kafka: %s", str(kafka_error))
                 continue
 
     except KeyboardInterrupt:
