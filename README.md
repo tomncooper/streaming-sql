@@ -95,9 +95,9 @@ $ kubectl apply -f materialize/materialize-deployment.yaml
 Once deployed you can interact with the server using the `psql` command line client running in another pod using the `psql-cli.sh` script:
 
 ```bash
-$ ./materialize/psql-cli.sh 1
+$ ./materialize/psql-cli.sh <namespace> 1
 ```
 
-Where the number after the script is used to label different invocations of the CLI if you want to run more than one instance for data entry and analysis.
+Where the first argument is the namespace the ksqlDB instance is deployed in and the second argument is a number used to label different invocations of the CLI if you want to run more than one instance for data entry and analysis.
 
 Now you can play with materialize and follow the [project quickstart guide](https://materialize.io/docs/get-started/).
