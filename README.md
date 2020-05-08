@@ -101,3 +101,13 @@ $ ./materialize/psql-cli.sh <namespace> 1
 Where the first argument is the namespace the ksqlDB instance is deployed in and the second argument is a number used to label different invocations of the CLI if you want to run more than one instance for data entry and analysis.
 
 Now you can play with materialize and follow the [project quickstart guide](https://materialize.io/docs/get-started/).
+
+## Apache Calcite
+
+[Apache Calcite](https://calcite.apache.org/) provides libraries and tools to parse and optimise SQL queries and run them on a large number of different storage layers and execution engines. These include [experimental support](https://calcite.apache.org/docs/kafka_adapter.html) for Apache Kafka as a data source and allows you to query topics using Calcite's [Streaming SQL](https://calcite.apache.org/docs/stream.html) support.
+
+An example Kafka Adapter model file is provided in the `/calacite` folder. This is attached to a simple stream of usernames and titles from the wiki changes stream. You can invoke this from the calcite `sqlline` tool using the command below:
+
+```bash
+sqlline> !connect jdbc:calcite:model=kafka.model.json admin admin
+```

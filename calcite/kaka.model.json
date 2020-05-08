@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "defaultSchema": "KAFKA",
+  "schemas": [
+    {
+      "name": "KAFKA",
+      "tables": [
+        {
+          "name": "usertitles",
+          "factory": "org.apache.calcite.adapter.kafka.KafkaTableFactory",
+          "operand": {
+            "bootstrap.servers": "localhost:9094",
+            "topic.name": "user-titles",
+            "consumer.params": {
+              "group.id": "calcite-ut-consumer",
+              "key.deserializer": "org.apache.kafka.common.serialization.ByteArrayDeserializer",
+              "value.deserializer": "org.apache.kafka.common.serialization.ByteArrayDeserializer"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
