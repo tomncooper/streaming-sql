@@ -13,7 +13,6 @@ from kafka import KafkaProducer
 WIKIPEDIA_CHANGES: str = "https://stream.wikimedia.org/v2/stream/recentchange"
 
 BOOTSTRAP_ENV_VAR: str = "KAFKA_BOOTSTRAP_SERVERS"
-TOPIC_ENV_VAR: str = "KAFKA_TOPIC"
 
 LOG: logging.Logger = logging.getLogger("streamingSQL.generator")
 
@@ -66,14 +65,33 @@ def create_parser() -> ArgumentParser:
         help="The server boostrap string for the Kafka cluster",
     )
 
-    parser.add_argument(
-        "-t",
-        "--topic",
-        required=False,
-        help="The topic which messages will be sent to",
-    )
-
     return parser
+
+def send_to_kafka(producer: KafkaProducer, topic: str, payload_str: str, key_str: Optional[str] = None):
+
+    try:
+        payload: bytes = payload_str.encode("UTF-8")
+    except UnicodeError as serialise_error:
+        LOG.warning("Error encoding message payload to bytes: %s", str(serialise_error))
+        return None
+
+    key: Optional[bytes]
+    if key_str:
+        try:
+            key = key_str.encode("UTF-8")
+        except UnicodeError as serialise_error:
+            LOG.warning("Error encoding message key to bytes: %s", str(serialise_error))
+            return None
+    else:
+        key = None
+
+    try:
+        if key:
+            producer.send(topic, key=key, value=payload)
+        else:
+            producer.send(topic, value=payload)
+    except Exception as kafka_error:
+        LOG.warning("Error when sending to Kafka: %s", str(kafka_error))
 
 
 if __name__ == "__main__":
@@ -107,20 +125,6 @@ if __name__ == "__main__":
     else:
         BOOTSTRAP = ARGS.bootstrap_servers
 
-    if not ARGS.topic:
-        if TOPIC_ENV_VAR in os.environ:
-            TOPIC: str = os.environ[TOPIC_ENV_VAR]
-            TOP_LOG.info("Using topic {%s} defined in %s environment variable", TOPIC,
-                    TOPIC_ENV_VAR)
-        else:
-            TOP_LOG.error(
-                "Kafka topic was not specified via the command line "
-                "argument or the environment variable (%s). Exiting.", TOPIC_ENV_VAR)
-            sys.exit(1)
-    else:
-        TOPIC = ARGS.topic
-
-
     PRODUCER: KafkaProducer = KafkaProducer(bootstrap_servers=BOOTSTRAP)
 
     def terminate_handler(sigterm, frame):
@@ -133,7 +137,7 @@ if __name__ == "__main__":
     WIKI_CHANGES: Iterator[Optional[dict]] = wikipedia_changes()
 
     try:
-        TOP_LOG.info("Starting stream generation to %s topic", TOPIC)
+        TOP_LOG.info("Starting stream generation")
         while True:
 
             try:
@@ -152,17 +156,16 @@ if __name__ == "__main__":
                 TOP_LOG.warning("Error encoding change message to JSON: %s", str(json_error))
                 continue
 
+            # Send raw wiki change to wiki-changes
+            send_to_kafka(PRODUCER, "wiki-changes", payload_str=payload_str)
+
+            # Send user and title to user-titles topic for simple example.
             try:
-                payload: bytes = payload_str.encode("UTF-8")
-            except UnicodeError as serialise_error:
-                TOP_LOG.warning("Error encoding change message to bytes: %s", str(serialise_error))
+                send_to_kafka(PRODUCER, "user-titles", key_str=change["user"], payload_str=change["title"])
+            except KeyError as key_error:
+                TOP_LOG.error("Wiki change dictionary did not contain expected keys")
                 continue
 
-            try:
-                PRODUCER.send(TOPIC, value=payload)
-            except Exception as kafka_error:
-                TOP_LOG.warning("Error when sending to Kafka: %s", str(kafka_error))
-                continue
 
     except KeyboardInterrupt:
          TOP_LOG.info("Closing Kafka producer...")

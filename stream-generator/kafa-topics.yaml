@@ -10,5 +10,18 @@ spec:
   config:
     retention.ms: 7200000
     segment.bytes: 1073741824
+---
+apiVersion: kafka.strimzi.io/v1beta1
+kind: KafkaTopic
+metadata:
+  name: user-titles
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  partitions: 4
+  replicas: 3
+  config:
+    retention.ms: 7200000
+    segment.bytes: 1073741824
  
 

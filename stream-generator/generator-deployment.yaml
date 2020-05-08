@@ -21,5 +21,3 @@ spec:
         env:
         - name: KAFKA_BOOTSTRAP_SERVERS
           value: my-cluster-kafka-bootstrap:9092
-        - name: KAFKA_TOPIC
-          value: wiki-changes
