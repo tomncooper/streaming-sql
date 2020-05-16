@@ -115,7 +115,7 @@ if __name__ == "__main__":
     if not ARGS.bootstrap_servers:
         if BOOTSTRAP_ENV_VAR in os.environ:
             BOOTSTRAP: str = os.environ[BOOTSTRAP_ENV_VAR]
-            TOP_LOG.info("Using Kafka bootstrap {%s} defined in %s environment variable",
+            TOP_LOG.info("Using Kafka bootstrap address (%s) defined in %s environment variable",
                     BOOTSTRAP, BOOTSTRAP_ENV_VAR)
         else:
             TOP_LOG.error(
@@ -124,6 +124,10 @@ if __name__ == "__main__":
             sys.exit(1)
     else:
         BOOTSTRAP = ARGS.bootstrap_servers
+
+    TOP_LOG.info(
+        "Creating Kafka Producer for Kafka Cluster at: %s", BOOTSTRAP,
+    )
 
     PRODUCER: KafkaProducer = KafkaProducer(bootstrap_servers=BOOTSTRAP)
 
@@ -165,7 +169,6 @@ if __name__ == "__main__":
             except KeyError as key_error:
                 TOP_LOG.error("Wiki change dictionary did not contain expected keys")
                 continue
-
 
     except KeyboardInterrupt:
          TOP_LOG.info("Closing Kafka producer...")

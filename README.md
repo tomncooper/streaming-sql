@@ -106,8 +106,48 @@ Now you can play with materialize and follow the [project quickstart guide](http
 
 [Apache Calcite](https://calcite.apache.org/) provides libraries and tools to parse and optimise SQL queries and run them on a large number of different storage layers and execution engines. These include [experimental support](https://calcite.apache.org/docs/kafka_adapter.html) for Apache Kafka as a data source and allows you to query topics using Calcite's [Streaming SQL](https://calcite.apache.org/docs/stream.html) support.
 
-An example Kafka Adapter model file is provided in the `/calacite` folder. This is attached to a simple stream of usernames and titles from the wiki changes stream. You can invoke this from the calcite `sqlline` tool using the command below:
+An example Kafka Adapter model file is provided in the `/calacite` folder. This is attached to a simple stream of usernames and titles from the wiki changes stream. 
+
+You can run the calcite `sqlline` tool by cloning the [calcite repo](https://github.com/apache/calcite) and running the following command from the repo root:
+
+```bash
+$ ./sqlline
+```
+
+To connect to the kafka cluster running in `minikube` you will need to add an external listener to your cluster definition. You can add the following config for an unsecured external listener:
+
+```yaml
+kafka:
+listeners:
+  external:
+    tls: false
+    type: nodeport
+```
+
+And then expose the listener port using:
+
+```bash
+kubectl port-forward svc/my-cluster-kafka-external-bootstrap 9094:9094
+```
+
+This will make the Kafka bootstrap service available at `localhost:9094`.
+
+You can then start the calcite `sqlline` tool and connect to the `user-titles` stream (defined in the `kafka.modle.json` schema file) using the command below:
 
 ```bash
 sqlline> !connect jdbc:calcite:model=kafka.model.json admin admin
 ```
+
+The above assumes that you placed `kafka.model.json` in the Calcite repo root but you can pass a relative path after the `=` pointing to the schema file.
+
+You can see the `USER_TITLES` table by running the command below:
+
+```sql
+SELECT STREAM * FROM KAFKA.USER_TITLES LIMIT 10;
+```
+
+The `LIMIT` term is there to get the query to return faster.
+
+
+
+

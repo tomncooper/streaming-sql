@@ -6,7 +6,7 @@
       "name": "KAFKA",
       "tables": [
         {
-          "name": "usertitles",
+          "name": "USER_TITLES",
           "factory": "org.apache.calcite.adapter.kafka.KafkaTableFactory",
           "operand": {
             "bootstrap.servers": "localhost:9094",
