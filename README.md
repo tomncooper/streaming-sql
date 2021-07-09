@@ -80,13 +80,13 @@ SELECT * FROM userTitles EMIT CHANGES;
 
 You create tables from this stream and others and then query these like tables in a database.
 
-## materialize
+## Materialize
 
 [Materialize](https://materialize.io/) uses a streaming engine based on timely dataflow to provide a PostgreSQL compatible SQL interface. 
 
 This is not a fully open source solution as it is licensed under the Business Source License v1.1. Which limits you to running the code on a singe instance unless you purchase a licence.
 
-You can deploy the materialize server using the following command:
+You can deploy the Materialize server using the following command:
 
 ```bash
 $ kubectl apply -f materialize/materialize-deployment.yaml
@@ -98,9 +98,9 @@ Once deployed you can interact with the server using the `psql` command line cli
 $ ./materialize/psql-cli.sh <namespace> 1
 ```
 
-Where the first argument is the namespace the ksqlDB instance is deployed in and the second argument is a number used to label different invocations of the CLI if you want to run more than one instance for data entry and analysis.
+Where the first argument is the namespace the Materialize instance is deployed in and the second argument is a number used to label different invocations of the CLI if you want to run more than one instance for data entry and analysis.
 
-Now you can play with materialize and follow the [project quickstart guide](https://materialize.io/docs/get-started/).
+Now you can play with Materialize and follow the [project quickstart guide](https://materialize.io/docs/get-started/).
 
 ## Apache Calcite
 
